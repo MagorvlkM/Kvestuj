@@ -62,7 +62,7 @@ export function gasPorts(config: Config): Ports {
             ...(size != null ? { 'X-Upload-Content-Length': String(size) } : {}),
             Origin: originOf(config.appUrl),
           },
-          payload: JSON.stringify({ name, parents: [config.folderId] }),
+          payload: JSON.stringify({ name, mimeType: mime, parents: [config.folderId] }),
           muteHttpExceptions: true,
         })
         const code = res.getResponseCode()

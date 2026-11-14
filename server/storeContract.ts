@@ -212,13 +212,15 @@ export function storeContract(make: () => Store): void {
   describe('reroll uses', () => {
     it('upserts by member+week', () => {
       const s = make()
-      const u1: RerollUse = { memberId: 'm1', weekKey: '2026-W46' }
+      const u1: RerollUse = { memberId: 'm1', weekKey: '2026-W46', questId: 'q1' }
+      const u2: RerollUse = { memberId: 'm1', weekKey: '2026-W47', questId: null }
       s.addRerollUse(u1)
       s.addRerollUse({ ...u1 })
-      s.addRerollUse({ memberId: 'm1', weekKey: '2026-W47' })
-      s.addRerollUse({ memberId: 'm2', weekKey: '2026-W46' })
+      s.addRerollUse(u2)
+      s.addRerollUse({ memberId: 'm2', weekKey: '2026-W46', questId: 'q2' })
       expect(s.rerollUses()).toHaveLength(3)
       expect(s.rerollUses()).toContainEqual(u1)
+      expect(s.rerollUses()).toContainEqual(u2)
     })
   })
 

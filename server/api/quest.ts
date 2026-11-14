@@ -1,5 +1,5 @@
 // me, reroll.
-import { canReroll, pickQuest } from '../../shared/quests'
+import { canReroll, pickQuest, seenQuestIds } from '../../shared/quests'
 import { monthBounds } from '../../shared/recap'
 import { localParts } from '../../shared/time'
 import type { ApiResults, Assignment, HistoryItem, OpenQuest } from '../../shared/types'
@@ -69,12 +69,14 @@ export function reroll(ctx: Ctx): ApiResults['reroll'] {
   const a = openAssignment(mine)
   // An open quest past its deadline (the tick has not marked it missed yet) is not rerollable either.
   if (!a || (a.deadlineAt !== null && now >= a.deadlineAt)) throw new UserError('You have no open quest to reroll')
-  if (!canReroll(member.id, a.weekKey, store.rerollUses(), a, now)) throw new UserError("You've used this week's reroll")
+  const uses = store.rerollUses()
+  if (!canReroll(member.id, a.weekKey, uses, a, now)) throw new UserError("You've used this week's reroll")
 
-  const seen = new Set(mine.flatMap((x) => (x.questId ? [x.questId] : [])))
+  const seen = seenQuestIds(member.id, mine, uses)
   const quest = pickQuest(store.quests(), seen, ports.rng, a.questId ?? undefined)
   const updated = { ...a, questId: quest.id } // dropAt and deadlineAt stay
   store.putAssignment(updated)
-  store.addRerollUse({ memberId: member.id, weekKey: a.weekKey })
+  // Remember the quest rerolled away: the assignment no longer carries it, but it has been seen.
+  store.addRerollUse({ memberId: member.id, weekKey: a.weekKey, questId: a.questId })
   return { open: openQuest(ctx, updated) }
 }

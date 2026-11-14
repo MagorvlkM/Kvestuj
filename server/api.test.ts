@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { hashSecret } from '../shared/codes'
 import { planWeek, weekKey } from '../shared/drops'
 import { DAY, HOUR, startOfLocalWeek } from '../shared/time'
-import type { ApiResults, Member } from '../shared/types'
+import { pickQuest, seenQuestIds } from '../shared/quests'
+import type { ApiResults, Member, Quest } from '../shared/types'
 import { handle } from './api'
 import { MemoryStore } from './memoryStore'
 import {
@@ -192,7 +193,7 @@ describe('me', () => {
   })
 
   it('reroll is unavailable once used in the assignment week', () => {
-    const w = world({ assignments: [asg('a1', 'm1')], rerollUses: [{ memberId: 'm1', weekKey: asg('x', 'm1').weekKey }] })
+    const w = world({ assignments: [asg('a1', 'm1')], rerollUses: [{ memberId: 'm1', weekKey: asg('x', 'm1').weekKey, questId: 'q2' }] })
     expect(data<ApiResults['me']>(w.ada('me')).open!.rerollAvailable).toBe(false)
   })
 
@@ -250,7 +251,7 @@ describe('reroll', () => {
     expect(a).toMatchObject({ dropAt: T0, deadlineAt: DEADLINE0, status: 'open' })
     expect(r.open).toMatchObject({ assignmentId: 'a1', dropAt: T0, deadlineAt: DEADLINE0, rerollAvailable: false })
     expect(r.open.questText).toBe(w.store.quests().find((q) => q.id === a.questId)!.text)
-    expect(w.store.rerollUses()).toEqual([{ memberId: 'm1', weekKey: a.weekKey }])
+    expect(w.store.rerollUses()).toEqual([{ memberId: 'm1', weekKey: a.weekKey, questId: 'q1' }])
   })
 
   it('reroll second time in week refused', () => {
@@ -259,6 +260,35 @@ describe('reroll', () => {
     const questId = w.store.assignments()[0].questId
     expect(refusal(w.ada('reroll'))).toBe("You've used this week's reroll")
     expect(w.store.assignments()[0].questId).toBe(questId)
+  })
+
+  it('a rerolled-away quest is not handed out again until the whole bank has been seen', () => {
+    const bank: Quest[] = [
+      { id: 'q1', text: 'QTEXT-one', difficulty: 'easy', enabled: true },
+      { id: 'q2', text: 'QTEXT-two', difficulty: 'medium', enabled: true },
+      { id: 'q3', text: 'QTEXT-three', difficulty: 'hard', enabled: true },
+    ]
+    // Week 1: Ada is shown q1 and rerolls it away.
+    const w = world({ quests: bank, assignments: [asg('a1', 'm1', { questId: 'q1' })] })
+    data(w.ada('reroll'))
+    const got = w.store.assignments()[0].questId!
+    expect(got).not.toBe('q1')
+    expect(w.store.rerollUses()).toEqual([{ memberId: 'm1', weekKey: asg('x', 'm1').weekKey, questId: 'q1' }])
+    const third = bank.find((q) => q.id !== 'q1' && q.id !== got)!.id
+
+    // Week 2's drop pick (the tick uses seenQuestIds too): q1 still counts as seen, so only the third quest is left.
+    const seen = seenQuestIds('m1', w.store.assignments(), w.store.rerollUses())
+    expect([...seen].sort()).toEqual(['q1', got].sort())
+    for (let s = 0; s < 200; s++) expect(pickQuest(bank, seen, seeded(s)).id).toBe(third)
+
+    // Week 2: the third quest dropped; now the bank is exhausted, so a reroll starts a new cycle (any but the current).
+    const week2 = asg('a2', 'm1', { questId: third, dropAt: T0 + 7 * DAY, deadlineAt: T0 + 7 * DAY + 12 * HOUR, weekKey: weekKey(T0 + 7 * DAY, TZ) })
+    w.store.putAssignment({ ...w.store.assignments()[0], status: 'done' })
+    w.store.putAssignment(week2)
+    w.ports.clock.t = T0 + 7 * DAY + HOUR
+    data(w.ada('reroll'))
+    expect(w.store.assignments().find((a) => a.id === 'a2')!.questId).not.toBe(third)
+    expect(w.store.rerollUses()).toContainEqual({ memberId: 'm1', weekKey: week2.weekKey, questId: third })
   })
 
   it('refuses without an open quest (or once its deadline has passed)', () => {

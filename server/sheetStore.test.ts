@@ -175,6 +175,14 @@ describe('SheetStore (fake spreadsheet)', () => {
     expect(q[1]).toMatchObject({ id: 'q3', enabled: false })
   })
 
+  it('reads reroll rows from a tab without a questId column as questId null', () => {
+    const env = makeEnv()
+    const old = new FakeSheet('Rerolls', ['memberId', 'weekKey'], env.log)
+    old.data.push(['m1', '2026-W46'])
+    env.sheets.Rerolls = old
+    expect(env.store().rerollUses()).toEqual([{ memberId: 'm1', weekKey: '2026-W46', questId: null }])
+  })
+
   it('ignores unknown columns and preserves them on update', () => {
     const env = makeEnv()
     env.sheets.Reactions.data[0] = ['postId', 'note', 'memberId', 'emoji']

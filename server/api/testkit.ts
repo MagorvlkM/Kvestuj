@@ -128,6 +128,7 @@ export const ADA = mem('m1', 'Ada')
 export const BO = mem('m2', 'Bo')
 
 type WorldInit = Partial<{
+  quests: Quest[]
   members: Member[]
   assignments: Assignment[]
   posts: Post[]
@@ -141,7 +142,7 @@ type WorldInit = Partial<{
 export function world(init: WorldInit = {}) {
   const store = new MemoryStore({
     config,
-    quests,
+    quests: init.quests ?? quests,
     members: init.members ?? [ADA, BO],
     assignments: init.assignments,
     posts: init.posts,

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, test } from 'vitest'
 import type { Rng } from './drops'
-import { canReroll, DIFFICULTY_WEIGHTS, parseQuestCsv, pickQuest } from './quests'
+import { canReroll, DIFFICULTY_WEIGHTS, parseQuestCsv, pickQuest, seenQuestIds } from './quests'
 import type { Assignment, Quest } from './types'
 
 // mulberry32: small seeded PRNG in [0,1)
@@ -80,10 +80,10 @@ describe('pickQuest', () => {
 describe('canReroll', () => {
   test('happy path', () => expect(canReroll('m1', '2026-W47', [], openA, now)).toBe(true))
   test('reroll once per week', () => {
-    expect(canReroll('m1', '2026-W47', [{ memberId: 'm1', weekKey: '2026-W47' }], openA, now)).toBe(false)
+    expect(canReroll('m1', '2026-W47', [{ memberId: 'm1', weekKey: '2026-W47', questId: 'q002' }], openA, now)).toBe(false)
   })
   test('use in another week does not block', () => {
-    expect(canReroll('m1', '2026-W47', [{ memberId: 'm1', weekKey: '2026-W46' }], openA, now)).toBe(true)
+    expect(canReroll('m1', '2026-W47', [{ memberId: 'm1', weekKey: '2026-W46', questId: 'q002' }], openA, now)).toBe(true)
   })
   test('reroll refused after deadline', () => expect(canReroll('m1', '2026-W47', [], openA, openA.deadlineAt! + 1)).toBe(false))
   test('refused for another member', () => expect(canReroll('m2', '2026-W47', [], openA, now)).toBe(false))
@@ -114,5 +114,24 @@ describe('parseQuestCsv', () => {
   })
   test('empty text', () => {
     expect(() => parseQuestCsv('text,difficulty\n  ,easy\n')).toThrow(/^row 1: /)
+  })
+})
+
+describe('seenQuestIds', () => {
+  test("is the member's assigned quests plus the quests they rerolled away", () => {
+    const assignments: Assignment[] = [
+      { ...openA, id: 'a1', questId: 'q001' },
+      { ...openA, id: 'a2', questId: null, status: 'scheduled' },
+      { ...openA, id: 'a3', questId: 'q002', status: 'done' },
+      { ...openA, id: 'b1', memberId: 'm2', questId: 'q009' },
+    ]
+    const uses = [
+      { memberId: 'm1', weekKey: '2026-W45', questId: 'q005' },
+      { memberId: 'm1', weekKey: '2026-W46', questId: null }, // a row from before questId was recorded
+      { memberId: 'm2', weekKey: '2026-W46', questId: 'q008' },
+    ]
+    expect([...seenQuestIds('m1', assignments, uses)].sort()).toEqual(['q001', 'q002', 'q005'])
+    expect([...seenQuestIds('m2', assignments, uses)].sort()).toEqual(['q008', 'q009'])
+    expect(seenQuestIds('m3', assignments, uses).size).toBe(0)
   })
 })

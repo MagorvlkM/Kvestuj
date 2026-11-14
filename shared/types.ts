@@ -62,6 +62,8 @@ export type Comment = {
 export type RerollUse = {
   memberId: string
   weekKey: string
+  /** The quest rerolled AWAY (it stays "seen"); null on rows written before this was recorded. */
+  questId: string | null
 }
 
 export type Recap = {

@@ -17,7 +17,7 @@ export const SPECS = {
   } satisfies Spec<Post>,
   Reactions: { postId: 's', memberId: 's', emoji: 's' } satisfies Spec<Reaction>,
   Comments: { id: 's', postId: 's', memberId: 's', text: 's', createdAt: 'n' } satisfies Spec<Comment>,
-  Rerolls: { memberId: 's', weekKey: 's' } satisfies Spec<RerollUse>,
+  Rerolls: { memberId: 's', weekKey: 's', questId: 'sn' } satisfies Spec<RerollUse>,
   Recaps: { month: 's', json: 's' } satisfies Spec<Recap>,
 }
 export type TabName = keyof typeof SPECS

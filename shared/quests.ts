@@ -42,6 +42,17 @@ export function canReroll(memberId: string, weekKey: string, uses: RerollUse[], 
   )
 }
 
+/**
+ * Every quest the member has been shown: the quests of their assignments plus the ones they
+ * rerolled away (the reroll overwrites the assignment's questId, so those live only in the reroll uses).
+ */
+export function seenQuestIds(memberId: string, assignments: Assignment[], rerollUses: RerollUse[]): Set<string> {
+  const seen = new Set<string>()
+  for (const a of assignments) if (a.memberId === memberId && a.questId !== null) seen.add(a.questId)
+  for (const u of rerollUses) if (u.memberId === memberId && u.questId !== null) seen.add(u.questId)
+  return seen
+}
+
 function parseRows(text: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
