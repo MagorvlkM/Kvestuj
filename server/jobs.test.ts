@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { awakeDeadline } from '../shared/deadline'
+import { awakeDeadline, awakeRemaining } from '../shared/deadline'
 import { weekKey } from '../shared/drops'
 import { DAY, HOUR, localParts, zonedTimeToUtc } from '../shared/time'
 import type { Assignment, Quest } from '../shared/types'
@@ -243,8 +243,9 @@ describe('tick: planning', () => {
       now,
     })
     tick(w.store, w.ports)
-    // the stale scheduled drop opened first (it is due); the new plan must come after its deadline
+    // the stale drop is still pending (it waits for 10:00); the new plan must come after its deadline
     const planned = w.store.assignments().filter((a) => a.id !== 'a0')
+    expect(planned.length).toBeGreaterThan(0)
     for (const a of planned) expect(a.dropAt).toBeGreaterThanOrEqual(prague(2026, 11, 16, 21, 0))
   })
 })
@@ -295,6 +296,105 @@ describe('tick: time zones', () => {
       const h = localParts(a.dropAt, NY).h
       expect(h).toBeGreaterThanOrEqual(10)
       expect(h).toBeLessThan(22)
+    }
+  })
+})
+
+describe('tick: quiet hours and zone changes', () => {
+  const V = VIENNA
+
+  it('a drop that lands in the new zone\'s night waits for 10:00, then drops once with one alert', () => {
+    // NY member planned a drop for Sunday 21:00 New York = Monday 03:00 Vienna, then moved to Vienna.
+    const dropAt = zonedTimeToUtc(2026, 11, 22, 21, 0, NY)
+    expect(localParts(dropAt, V)).toMatchObject({ d: 23, h: 3 })
+    const store = new MemoryStore({
+      config,
+      quests,
+      members: [mem('m1', 'Ada', { tz: V })],
+      assignments: [scheduled('a0', 'm1', dropAt, { weekKey: weekKey(dropAt, NY) })],
+    })
+    const ports = fakePorts(dropAt)
+    const at = (h: number, mi = 0) => zonedTimeToUtc(2026, 11, 23, h, mi, V)
+    for (const t of [at(3, 0), at(3, 15), at(6, 0), at(9, 45)]) {
+      ports.clock.t = t
+      expect(tick(store, ports).dropped).toBe(0)
+    }
+    expect(store.assignments().find((a) => a.id === 'a0')!.status).toBe('scheduled')
+    expect(ports.sent).toEqual([])
+
+    ports.clock.t = at(10, 0)
+    expect(tick(store, ports).dropped).toBe(1)
+    const a = store.assignments().find((x) => x.id === 'a0')!
+    expect(a.status).toBe('open')
+    expect(a.dropAt).toBe(dropAt)
+    expect(a.deadlineAt).toBe(awakeDeadline(dropAt, V))
+    expect(ports.sent.map((s) => s.title)).toEqual(['New quest'])
+    ports.clock.t = at(10, 15)
+    expect(tick(store, ports).dropped).toBe(0)
+    expect(ports.sent).toHaveLength(1)
+  })
+
+  it('a 21:58 drop picked up by the 22:05 tick still drops; past the 30-minute grace it waits for 10:00', () => {
+    const dropAt = prague(2026, 11, 16, 21, 58)
+    const w = world({ members: [mem('m1', 'Ada')], assignments: [scheduled('a1', 'm1', dropAt)], now: prague(2026, 11, 16, 22, 5) })
+    expect(tick(w.store, w.ports).dropped).toBe(1)
+    expect(w.ports.sent.map((s) => s.title)).toEqual(['New quest'])
+
+    const w2 = world({ members: [mem('m1', 'Ada')], assignments: [scheduled('a1', 'm1', dropAt)], now: prague(2026, 11, 16, 22, 40) })
+    expect(tick(w2.store, w2.ports).dropped).toBe(0)
+    w2.ports.clock.t = prague(2026, 11, 17, 10, 0)
+    expect(tick(w2.store, w2.ports).dropped).toBe(1)
+  })
+
+  it('an eastward zone change across Sunday/Monday never leaves three drops in one local week', () => {
+    const mon = zonedTimeToUtc(2026, 11, 16, 12, 0, NY)
+    const sun21 = zonedTimeToUtc(2026, 11, 22, 21, 0, NY) // = Monday 03:00 Vienna, in Vienna week 2026-W48
+    const store = new MemoryStore({
+      config,
+      quests,
+      members: [mem('m1', 'Ada', { tz: V })], // already switched from New York
+      assignments: [
+        asg('x1', 'm1', { dropAt: mon, deadlineAt: mon + 10 * HOUR, status: 'done', weekKey: weekKey(mon, NY) }),
+        scheduled('x2', 'm1', sun21, { weekKey: weekKey(sun21, NY) }),
+      ],
+    })
+    const start = zonedTimeToUtc(2026, 11, 22, 20, 0, NY)
+    const ports = fakePorts(start, 3)
+    run(store, ports, start, start + 8 * DAY)
+
+    const weekStart = zonedTimeToUtc(2026, 11, 23, 0, 0, V)
+    const weekEnd = zonedTimeToUtc(2026, 11, 30, 0, 0, V)
+    const all = store.assignments()
+    expect(all.filter((a) => a.dropAt >= weekStart && a.dropAt < weekEnd)).toHaveLength(2)
+    expect(weekKey(weekStart, V)).toBe('2026-W48')
+    // never two quests open at once: each drop is at/after the previous one's deadline
+    const byDrop = [...all].sort((a, b) => a.dropAt - b.dropAt)
+    for (let i = 1; i < byDrop.length; i++) {
+      expect(byDrop[i].dropAt).toBeGreaterThanOrEqual(byDrop[i - 1].deadlineAt ?? awakeDeadline(byDrop[i - 1].dropAt, V))
+    }
+  })
+
+  it('a DST week (2026-10-25, Vienna): exactly 2 drops, each with exactly 12 awake hours, all in 10:00-22:00', () => {
+    const mon = zonedTimeToUtc(2026, 10, 19, 0, 0, V)
+    const sunEnd = zonedTimeToUtc(2026, 10, 26, 0, 0, V)
+    for (let seed = 1; seed <= 4; seed++) {
+      const store = new MemoryStore({ config, quests, members: [mem('m1', 'Ada', { tz: V })] })
+      const ports = fakePorts(mon, seed)
+      run(store, ports, mon, sunEnd - 15 * MIN)
+      const all = store.assignments()
+      expect(all).toHaveLength(2)
+      for (const a of all) {
+        const h = localParts(a.dropAt, V).h
+        expect(h).toBeGreaterThanOrEqual(10)
+        expect(h).toBeLessThanOrEqual(21)
+        expect(a.deadlineAt).not.toBeNull()
+        expect(awakeRemaining(a.dropAt, a.deadlineAt!, V)).toBe(12 * HOUR)
+        const d = localParts(a.deadlineAt!, V)
+        const minutes = d.h * 60 + d.mi
+        expect(minutes).toBeGreaterThanOrEqual(10 * 60)
+        expect(minutes).toBeLessThanOrEqual(22 * 60)
+      }
+      expect(ports.sent.filter((s) => s.title === 'New quest')).toHaveLength(2)
     }
   })
 })
@@ -353,6 +453,9 @@ describe('tick: locking', () => {
   })
 })
 
+/** A file name like the ones createUpload gives Drive uploads: `a_` + 12 lowercase base32 characters. */
+const upName = (tag: string, suffix: string) => `a_${tag.repeat(12)}-${suffix}`
+
 describe('dailyCleanup', () => {
   const now = prague(2026, 11, 14, 4, 0)
 
@@ -408,11 +511,11 @@ describe('dailyCleanup', () => {
       ],
     })
     w.ports.folder = [
-      { id: 'orphan-49h', createdAt: now - 49 * HOUR },
-      { id: 'orphan-47h', createdAt: now - 47 * HOUR },
-      { id: 'f-photo', createdAt: now - 60 * DAY },
-      { id: 'f-video', createdAt: now - 60 * DAY },
-      { id: 'f-still', createdAt: now - 60 * DAY },
+      { id: 'orphan-49h', name: upName('a', 'main.jpg'), createdAt: now - 49 * HOUR },
+      { id: 'orphan-47h', name: upName('b', 'main.jpg'), createdAt: now - 47 * HOUR },
+      { id: 'f-photo', name: upName('c', 'main.jpg'), createdAt: now - 60 * DAY },
+      { id: 'f-video', name: upName('d', 'main.mp4'), createdAt: now - 60 * DAY },
+      { id: 'f-still', name: upName('d', 'still.jpg'), createdAt: now - 60 * DAY },
     ]
     const r = dailyCleanup(w.store, w.ports)
     expect(r).toEqual({ expired: 0, orphans: 1 })
@@ -420,11 +523,23 @@ describe('dailyCleanup', () => {
     expect(dailyCleanup(w.store, w.ports).orphans).toBe(0) // gone from the folder now
   })
 
+  it('only trashes files named like an upload: an old unreferenced notes.txt is kept', () => {
+    const w = world({ now })
+    w.ports.folder = [
+      { id: 'notes', name: 'notes.txt', createdAt: now - 400 * DAY },
+      { id: 'near-miss', name: 'a_abcdefghijkl-main', createdAt: now - 400 * DAY },
+      { id: 'wrong-id', name: 'a_ABCDEFGHIJKL-main.jpg', createdAt: now - 400 * DAY },
+      { id: 'upload', name: upName('g', 'main.mp4'), createdAt: now - 400 * DAY },
+    ]
+    expect(dailyCleanup(w.store, w.ports).orphans).toBe(1)
+    expect(w.ports.trashed).toEqual(['upload'])
+  })
+
   it('keeps going when trashing one orphan fails', () => {
     const w = world({ now })
     w.ports.folder = [
-      { id: 'o1', createdAt: now - 100 * HOUR },
-      { id: 'o2', createdAt: now - 100 * HOUR },
+      { id: 'o1', name: upName('e', 'main.jpg'), createdAt: now - 100 * HOUR },
+      { id: 'o2', name: upName('f', 'still.jpg'), createdAt: now - 100 * HOUR },
     ]
     const real = w.ports.drive.trash
     w.ports.drive.trash = (id) => {

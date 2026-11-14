@@ -39,7 +39,7 @@ export type FakePorts = Ports & {
   sessions: { name: string; mime: string; size: number | null }[]
   files: Map<string, DriveFile>
   /** What `drive.listFolder` returns (minus trashed files). */
-  folder: { id: string; createdAt: number }[]
+  folder: { id: string; name: string; createdAt: number }[]
   lockCalls: number
   logs: string[]
 }

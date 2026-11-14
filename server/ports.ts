@@ -19,8 +19,8 @@ export interface Ports {
     getFile(fileId: string): DriveFile | null
     shareAnyoneReader(fileId: string): void
     trash(fileId: string): void
-    /** Every non-trashed file in the group folder (id + creation time), for orphan cleanup. */
-    listFolder(): { id: string; createdAt: number }[]
+    /** Every non-trashed file in the group folder (id, name, creation time), for orphan cleanup. */
+    listFolder(): { id: string; name: string; createdAt: number }[]
   }
   /** Never throws: a failed notification is logged. */
   ntfy: { send(channel: string, title: string, body: string): void }
@@ -92,12 +92,12 @@ export function gasPorts(config: Config): Ports {
         DriveApp.getFileById(fileId).setTrashed(true)
       },
       listFolder() {
-        const out: { id: string; createdAt: number }[] = []
+        const out: { id: string; name: string; createdAt: number }[] = []
         const files = DriveApp.getFolderById(config.folderId).getFiles()
         while (files.hasNext()) {
           const f = files.next()
           if (f.isTrashed()) continue
-          out.push({ id: f.getId(), createdAt: f.getDateCreated().getTime() })
+          out.push({ id: f.getId(), name: f.getName(), createdAt: f.getDateCreated().getTime() })
         }
         return out
       },
