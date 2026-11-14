@@ -1,0 +1,9 @@
+# Kvestuj (this folder is also the root of the public repo MagorvlkM/kvestuj)
+node_modules/
+dist/
+coverage/
+.env
+.env.local
+web/.env
+.clasp.json
+apps-script/Code.js

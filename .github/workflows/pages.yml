@@ -1,0 +1,32 @@
+# Runs in the public repo MagorvlkM/kvestuj (this folder is its root).
+# Task 0: publishes the platform-spike page. Task 13 replaces this with the app build.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: spike/site
+      - id: deployment
+        uses: actions/deploy-pages@v4
