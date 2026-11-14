@@ -38,6 +38,8 @@ export type FakePorts = Ports & {
   trashed: string[]
   sessions: { name: string; mime: string; size: number | null }[]
   files: Map<string, DriveFile>
+  /** What `drive.listFolder` returns (minus trashed files). */
+  folder: { id: string; createdAt: number }[]
   lockCalls: number
   logs: string[]
 }
@@ -50,6 +52,7 @@ export function fakePorts(now: number, seed = 7): FakePorts {
     trashed: [],
     sessions: [],
     files: new Map(),
+    folder: [],
     lockCalls: 0,
     logs: [],
     now: () => p.clock.t,
@@ -62,6 +65,7 @@ export function fakePorts(now: number, seed = 7): FakePorts {
       getFile: (id) => p.files.get(id) ?? null,
       shareAnyoneReader: (id) => void p.shared.push(id),
       trash: (id) => void p.trashed.push(id),
+      listFolder: () => p.folder.filter((f) => !p.trashed.includes(f.id)),
     },
     ntfy: { send: (channel, title, body) => void p.sent.push({ channel, title, body }) },
     lock<T>(fn: () => T): T {
