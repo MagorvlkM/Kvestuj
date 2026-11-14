@@ -90,4 +90,4 @@ Any op except `join`/`recover` without a valid token: "Please rejoin with your r
 | someone posts | groupChannel | Kvestuj | {name} posted their quest |
 | recap on the 1st | groupChannel | Kvestuj | {Month} recap is ready |
 
-Every message carries `config.appUrl` as its click target. No notifications go out between 22:00 and 10:00 member-local; they wait for the first tick after 10:00.
+Every message carries `config.appUrl` as its click target. Member-channel alerts (new quest, 2 hours left) never go out between 22:00 and 10:00 member-local; a reminder that comes due at night waits for the first tick after 10:00. Group-channel alerts (new post, recap) go out when they happen: posting is the member's own action, the group spans time zones, and each person can mute the group channel at night in the ntfy app.
