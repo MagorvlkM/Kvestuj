@@ -1,6 +1,6 @@
 /// <reference types="google-apps-script" />
 import type { Assignment, Comment, Config, Member, Post, Quest, Reaction, Recap, RerollUse } from '../shared/types'
-import { SPECS, TABS, decodeQuest, decodeRecord, decodeValue, encodeValue, type Kind, type TabName } from './sheetSchema'
+import { SPECS, TABS, decodeQuest, decodeRecord, decodeValue, encodeValue, formatFor, hasOwn, type Kind, type TabName } from './sheetSchema'
 import type { Store } from './store'
 
 export { TABS }
@@ -31,7 +31,7 @@ class Table<T extends object> {
   }
 
   private toObj(row: unknown[]): Obj {
-    const o: Obj = {}
+    const o: Obj = Object.create(null)
     this.header.forEach((h, j) => (o[h] = row[j]))
     return o
   }
@@ -40,9 +40,17 @@ class Table<T extends object> {
   private encode(rec: T, base?: unknown[]): unknown[] {
     const row = base ? base.slice() : this.header.map(() => '')
     this.header.forEach((h, j) => {
-      if (h in this.spec) row[j] = encodeValue((rec as Obj)[h])
+      if (hasOwn(this.spec, h)) row[j] = encodeValue((rec as Obj)[h])
     })
     return row
+  }
+
+  /** Plain-text / number formats on the rows about to be written, set BEFORE setValues so Sheets never parses our strings. */
+  private format(firstRow: number, rows: number) {
+    this.header.forEach((h, j) => {
+      const f = hasOwn(this.spec, h) ? formatFor(this.spec[h]) : null
+      if (f) this.sheet.getRange(firstRow, j + 1, rows, 1).setNumberFormat(f)
+    })
   }
 
   all(): T[] {
@@ -55,6 +63,7 @@ class Table<T extends object> {
     const i = this.recs.findIndex((r) => r !== null && same(r))
     const row = this.encode(rec, i >= 0 ? this.raw[i] : undefined)
     const at = i >= 0 ? i : this.recs.length
+    this.format(at + 2, 1)
     this.sheet.getRange(at + 2, 1, 1, this.header.length).setValues([row as never[]])
     this.recs[at] = { ...rec }
     this.raw[at] = row
@@ -76,7 +85,10 @@ class Table<T extends object> {
     if (this.raw.length > 0) this.sheet.getRange(2, 1, this.raw.length, this.header.length).clearContent()
     this.raw = recs.map((r) => this.encode(r))
     this.recs = recs.map((r) => ({ ...r }))
-    if (recs.length > 0) this.sheet.getRange(2, 1, recs.length, this.header.length).setValues(this.raw as never[][])
+    if (recs.length > 0) {
+      this.format(2, recs.length)
+      this.sheet.getRange(2, 1, recs.length, this.header.length).setValues(this.raw as never[][])
+    }
   }
 }
 
@@ -104,7 +116,7 @@ export class SheetStore implements Store {
 
   getConfig(): Config {
     if (!this.cfg) {
-      const kv: Obj = {}
+      const kv: Obj = Object.create(null)
       for (const [k, v] of this.sheet('Config').getDataRange().getValues().slice(1)) kv[String(k).trim()] = v
       const cfg: Obj = {}
       for (const [field, kind] of Object.entries(SPECS.Config)) cfg[field] = decodeValue(kind, kv[field])
@@ -116,7 +128,9 @@ export class SheetStore implements Store {
     const sheet = this.sheet('Config')
     const rows = Object.keys(SPECS.Config).map((k) => [k, encodeValue((c as Record<string, unknown>)[k])])
     sheet.clearContents()
-    sheet.getRange(1, 1, rows.length + 1, 2).setValues([['key', 'value'], ...rows] as never[][])
+    const range = sheet.getRange(1, 1, rows.length + 1, 2)
+    range.setNumberFormat('@') // groupSecret may start with '-' or '=': never let Sheets parse it
+    range.setValues([['key', 'value'], ...rows] as never[][])
     this.cfg = { ...c }
   }
 

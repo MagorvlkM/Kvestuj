@@ -35,6 +35,7 @@ export const TABS: Record<TabName, string[]> = {
   Recaps: Object.keys(SPECS.Recaps),
 }
 
+export const hasOwn = (o: object, k: string) => Object.prototype.hasOwnProperty.call(o, k)
 const blank = (v: unknown) => v === undefined || v === null || v === ''
 
 function toNum(v: unknown): number | null {
@@ -53,10 +54,23 @@ function toBool(v: unknown): boolean | null {
   return s === 'TRUE' ? true : s === 'FALSE' ? false : null
 }
 
-export function decodeValue(kind: Kind, v: unknown): string | number | boolean | null {
+/** Number format applied before writing, so Sheets stores strings verbatim ('@') and numbers as numbers. Booleans keep the default. */
+export function formatFor(kind: Kind): string | null {
+  return kind === 's' || kind === 'sn' ? '@' : kind === 'n' || kind === 'nn' ? '0' : null
+}
+
+/** A string-kind cell that Sheets parsed anyway (hand-typed): Date in `month` -> 'YYYY-MM' (the Date's own Y/M), else String(value). */
+function toStr(v: unknown, field: string): string {
+  if (v instanceof Date && field === 'month' && !Number.isNaN(v.getTime())) {
+    return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}`
+  }
+  return String(v)
+}
+
+export function decodeValue(kind: Kind, v: unknown, field = ''): string | number | boolean | null {
   switch (kind) {
-    case 's': return blank(v) ? '' : String(v)
-    case 'sn': return blank(v) ? null : String(v)
+    case 's': return blank(v) ? '' : toStr(v, field)
+    case 'sn': return blank(v) ? null : toStr(v, field)
     case 'n': return toNum(v) ?? 0
     case 'nn': return toNum(v)
     case 'b': return toBool(v) ?? false
@@ -71,7 +85,7 @@ export function encodeValue(v: unknown): string | number | boolean {
 export function decodeRecord<T>(spec: Record<string, Kind>, obj: Record<string, unknown>): T | null {
   if (Object.values(obj).every(blank)) return null
   const out: Record<string, unknown> = {}
-  for (const [field, kind] of Object.entries(spec)) out[field] = decodeValue(kind, obj[field])
+  for (const [field, kind] of Object.entries(spec)) out[field] = decodeValue(kind, hasOwn(obj, field) ? obj[field] : undefined, field)
   return out as T
 }
 
