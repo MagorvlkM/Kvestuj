@@ -75,3 +75,14 @@ export function startOfLocalWeek(ms: number, tz: string): number {
   const monday = new Date(Date.UTC(p.y, p.m - 1, p.d - (p.weekday - 1)))
   return zonedTimeToUtc(monday.getUTCFullYear(), monday.getUTCMonth() + 1, monday.getUTCDate(), 0, 0, tz)
 }
+
+/** True when `tz` is a time zone this runtime's Intl understands (IANA names such as Europe/Prague). */
+export function isValidTimeZone(tz: unknown): tz is string {
+  if (typeof tz !== 'string' || tz.trim() === '') return false
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: tz })
+    return true
+  } catch {
+    return false
+  }
+}

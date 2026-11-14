@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { DAY, HOUR, localParts, startOfLocalWeek, zonedTimeToUtc } from './time'
+import { DAY, HOUR, isValidTimeZone, localParts, startOfLocalWeek, zonedTimeToUtc } from './time'
 
 test('localParts Prague summer', () => expect(localParts(Date.UTC(2026,6,1,8,0),'Europe/Prague')).toMatchObject({h:10,weekday:3}))
 test('zonedTimeToUtc across DST start', () => expect(zonedTimeToUtc(2027,3,28,10,0,'Europe/Vienna')).toBe(Date.UTC(2027,2,28,8,0)))
@@ -61,4 +61,14 @@ test('startOfLocalWeek across DST change is not 7x24h', () => {
 test('startOfLocalWeek in a non-European zone', () => {
   // Wed 2026-07-01 12:00 UTC = Wed 08:00 New York -> Mon 2026-06-29 00:00 EDT = 04:00 UTC
   expect(startOfLocalWeek(Date.UTC(2026,6,1,12,0),'America/New_York')).toBe(Date.UTC(2026,5,29,4,0))
+})
+
+test('isValidTimeZone accepts IANA zones and rejects junk', () => {
+  expect(isValidTimeZone('Europe/Prague')).toBe(true)
+  expect(isValidTimeZone('America/New_York')).toBe(true)
+  expect(isValidTimeZone('UTC')).toBe(true)
+  expect(isValidTimeZone('Mars/Olympus')).toBe(false)
+  expect(isValidTimeZone('')).toBe(false)
+  expect(isValidTimeZone(undefined)).toBe(false)
+  expect(isValidTimeZone(42)).toBe(false)
 })
