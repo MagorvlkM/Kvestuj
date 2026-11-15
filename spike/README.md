@@ -18,7 +18,7 @@ You need: your Google account, your GitHub account, an iPhone and an Android pho
 3. Leave **everything else empty**: no README, no .gitignore, no license. (I push the code; an auto-created README would clash.)
 4. Click **Create repository**.
 5. In the new repo: **Settings** (top tab) → **Pages** (left menu) → **Build and deployment** → **Source** → choose **GitHub Actions**. (If the option isn't shown yet, skip it; do it after I push.)
-6. Tell me "repo created" in the chat. I connect it and push the spike page. The page will be at <https://magorvlkm.github.io/kvestuj/>.
+6. Tell me "repo created" in the chat. I connect it and push the spike page. The page will be at <https://magorvlkm.github.io/Kvestuj/> (capital K: the address is case-sensitive).
 
 ## B. Create a Drive folder (1 min)
 
@@ -57,7 +57,7 @@ You need: your Google account, your GitHub account, an iPhone and an Android pho
 
 Do this on the **iPhone in Safari** and on the **Android phone in Chrome**, once I've told you the page is live.
 
-1. Open <https://magorvlkm.github.io/kvestuj/>.
+1. Open <https://magorvlkm.github.io/Kvestuj/>.
 2. Paste the **Web app URL** (C7) and the **API key** (D3) into the two fields at the top. The phone remembers them.
 3. **Step 1 · Ping** → it should say PASS and show the Prague time.
 4. **Step 2 · Upload**: tap **Record video** (or **Choose from library**) and use a video of **30 MB or more** (on iPhone, about 20 s of 4K or 60 s of 1080p). Tap **Upload** and watch the progress. It should say PASS with a file ID.

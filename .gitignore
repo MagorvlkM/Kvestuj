@@ -7,3 +7,10 @@ coverage/
 web/.env
 .clasp.json
 apps-script/Code.js
+
+# Impeccable runtime folders (decision mocks, question pages, review captures, local config)
+.impeccable/mocks/
+.impeccable/questions/
+.impeccable/review/
+.impeccable/build/
+.impeccable/config.local.json
