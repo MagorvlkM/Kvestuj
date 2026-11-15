@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kvestuj Feed - Bobříci</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500&family=Archivo+Narrow:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--g:#23402B;--g2:#2F5238;--k:#D8CFB0;--k2:#CBC19C;--ink:#1F1A14;--red:#C8372D;--mus:#E0A526;--blue:#4C6FB3;--soft:#4A4435;--gt:#C9D6BE}
+*{box-sizing:border-box;margin:0}
+body{width:390px;height:844px;overflow:hidden;background:var(--k);color:var(--ink);font:400 15px/1.35 Archivo,sans-serif;position:relative}
+h1,h2,.cap,button,.tab{font-family:"Archivo Narrow",sans-serif;text-transform:uppercase;letter-spacing:.06em}
+header{height:60px;background:var(--g);color:var(--k);display:flex;align-items:center;justify-content:space-between;padding:0 16px}
+header h1{font-size:24px;font-weight:700;letter-spacing:.04em}
+.right{display:flex;align-items:center;gap:10px}
+.troop{position:relative;height:44px;min-width:92px;padding:0 22px 0 14px;display:flex;align-items:center;gap:8px;color:var(--ink);font:700 16px "Archivo Narrow";letter-spacing:.06em;text-decoration:none}
+.troop::before{content:"";position:absolute;inset:6px 0;background:var(--k);clip-path:polygon(0 0,100% 0,86% 50%,100% 100%,0 100%);z-index:0}
+.troop span{position:relative;z-index:1}
+.troop small{font:600 11px "Archivo Narrow";letter-spacing:.08em;color:var(--soft)}
+.me{width:44px;height:44px;border-radius:50%;border:2px dashed var(--k);display:grid;place-items:center;font:700 17px "Archivo Narrow";color:var(--k);text-decoration:none}
+.quest{background:var(--g);color:var(--k);padding:4px 16px 18px;display:grid;grid-template-columns:1fr 96px;gap:4px 14px}
+.quest h2{grid-column:1/3;font-size:14px;font-weight:600;color:var(--gt);margin-top:6px}
+.quest p.q{font:500 17px/1.3 Archivo;color:#F1EBD6;margin-top:2px}
+.ghost{width:88px;height:88px;border-radius:50%;border:3px dotted var(--k);display:grid;place-items:center;text-align:center;font:600 11px/1.15 "Archivo Narrow";letter-spacing:.06em;text-transform:uppercase;color:var(--gt);align-self:center;justify-self:end;padding:8px}
+.meta{grid-column:1/3;font-size:13px;color:var(--gt);margin-top:2px}
+.meta b{font:700 18px "Archivo Narrow";letter-spacing:.04em;color:#F1EBD6}
+.acts{grid-column:1/3;display:flex;gap:10px;margin-top:10px;align-items:center}
+button{min-height:48px;border:0;border-radius:8px;font-size:17px;font-weight:700;cursor:pointer}
+.post{flex:1;background:var(--k);color:var(--ink)}
+.reroll{background:transparent;color:var(--k);font-weight:600;font-size:15px;padding:0 12px;text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+.feed{padding:6px 16px 0}
+.item{display:grid;grid-template-columns:48px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--k2)}
+.patch{width:48px;height:48px;border-radius:50%;border:3px dashed var(--c);display:grid;place-items:center;padding:0}
+.patch i{width:34px;height:34px;border-radius:50%;background:var(--c);display:grid;place-items:center;font:700 16px "Archivo Narrow";font-style:normal;color:#fff}
+.patch.mus i{color:var(--ink)}
+.who{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.who b{font:700 17px "Archivo Narrow";letter-spacing:.04em;text-transform:uppercase}
+.who span{font-size:13px;color:var(--soft)}
+.tag{font:700 12px "Archivo Narrow";letter-spacing:.08em;padding:2px 8px;border-radius:4px;background:var(--mus);color:var(--ink);text-transform:uppercase}
+.tag.b{background:var(--blue);color:#fff}
+.lock{margin-top:6px;border:1.5px dashed var(--soft);border-radius:8px;padding:8px 12px;font-size:14px;color:var(--ink)}
+.lock b{display:block;font:700 14px "Archivo Narrow";letter-spacing:.06em;text-transform:uppercase}
+.lock span{color:var(--soft);font-size:13px}
+.qline{font-size:13px;color:var(--soft);margin:3px 0 8px;font-style:italic}
+.media{height:104px;background:var(--blue);border-radius:6px;position:relative}
+.media.alt{background:var(--soft);height:88px}
+.media em{position:absolute;left:8px;bottom:8px;font:600 11px "Archivo Narrow";letter-spacing:.08em;font-style:normal;background:var(--ink);color:var(--k);padding:2px 6px;border-radius:3px}
+.cap{display:block}
+.txt{margin-top:8px;font-size:15px}
+.react{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.react a{min-height:36px;padding:0 10px;border:1.5px solid var(--soft);border-radius:18px;display:inline-flex;align-items:center;gap:4px;font:500 14px Archivo;color:var(--ink);text-decoration:none}
+.react a.on{background:var(--ink);color:var(--k);border-color:var(--ink)}
+.missed{padding:10px 0 10px 60px;font-size:14px;color:var(--soft);border-bottom:1px solid var(--k2)}
+.missed b{font-weight:500;color:var(--ink)}
+a:focus-visible,button:focus-visible{outline:3px solid var(--mus);outline-offset:2px}
+::selection{background:var(--mus);color:var(--ink)}
+</style></head>
+<body>
+<header>
+  <h1>Kvestuj</h1>
+  <nav class="right">
+    <a class="troop" href="#group" aria-label="Group, 6 of 10 members"><span>Group</span><span>6 / 10</span></a>
+    <a class="me" href="#me" aria-label="Me">M</a>
+  </nav>
+</header>
+<section class="quest">
+  <h2>Today's bobřík</h2>
+  <p class="q">Ask a stranger for the best thing to eat in your city, then go eat it.</p>
+  <div class="ghost">Your patch is waiting</div>
+  <p class="meta">Dropped Tue 18:47 · Due Wed 18:47 · <b>7h 12m left</b><br>Clock pauses 22:00–10:00</p>
+  <div class="acts"><button class="post">Post proof</button><button class="reroll">Reroll · 1 left</button></div>
+</section>
+<main class="feed">
+  <article class="item">
+    <div class="patch" style="--c:var(--red)"><i>O</i></div>
+    <div><div class="who"><b>Ondra</b><span>Vienna · 12 min ago</span></div>
+      <div class="lock"><b>Post your quest to see this</b><span>Unlocks when you post or your time runs out</span></div></div>
+  </article>
+  <article class="item">
+    <div class="patch mus" style="--c:var(--mus)"><i>A</i></div>
+    <div><div class="who"><b>Anna</b><span>Prague · 2h ago</span><span class="tag">Late</span></div>
+      <p class="qline">Get a stranger to teach you one word in their language.</p>
+      <div class="media"><em>VIDEO · 0:42</em></div>
+      <p class="txt">“Nazdar” is now officially my favourite word. Thank you random man at the tram stop.</p>
+      <div class="react"><a class="on" href="#">😂 4</a><a href="#">🔥 2</a><a href="#">😮</a><a href="#">❤️</a><a href="#">👏</a><a href="#">💀</a><a href="#">3 comments</a></div></div>
+  </article>
+  <p class="missed"><b>Tomáš</b> didn't get to their quest</p>
+  <article class="item" style="border:0">
+    <div class="patch" style="--c:var(--blue)"><i>K</i></div>
+    <div><div class="who"><b>Klára</b><span>Prague · yesterday</span><span class="tag b">Recorded earlier</span></div>
+      <p class="qline">Photograph a door in your city you'd love to live behind, and say in the caption who you imagine lives there now.</p>
+      <div class="media alt"><em>PHOTO</em></div></div>
+  </article>
+</main>
+</body></html>

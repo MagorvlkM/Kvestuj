@@ -44,12 +44,13 @@ A closed circle, not a network: one group, max 10, invite link only. The randomn
 
 - Name: **Kvestuj** (Czech for "go questing"). House rule shown to everyone: "House rule: always ask strangers before you film them."
 - Never punishing: no points, leaderboard, ranking or streak pressure; missed quests are shown gently.
-- Visual direction: open. The owner asked (2026-11-15) for new design options unrelated to the earlier BeReal-like canvas in `design/`; that canvas is no longer binding.
+- Visual direction: the owner chose (2026-11-15) the **Bobříci** world (Foglar's scouting dares; stitched patches; felt green and khaki) with the B1 layout, after two decision rounds. The direction contract lives in `.impeccable/surfaces/web-src-screens-feed-tsx.md`; reference sketches in `design/bobrici/`. The earlier BeReal-like canvas in `design/` is no longer binding.
 
 ## Evidence on Hand
 
 - `data/kvestuj-quests.csv`: the real 200-quest bank (90 easy, 80 medium, 30 hard), English.
 - `design/`: the earlier 8-screen canvas (Feed, Quest, Post, Post detail, Me, Group, Recap, Join), kept only as a record of screens and copy, not of look.
+- `design/bobrici/`: the chosen direction's sketches (world and B1 layout of the Feed).
 - No real member photos, videos or names exist yet; any shown in mockups are synthetic and must be labelled so.
 
 ## Product Principles
