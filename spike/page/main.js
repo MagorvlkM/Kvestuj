@@ -4,6 +4,7 @@ import {
 } from 'mediabunny';
 
 const $ = (id) => document.getElementById(id);
+const PAGE_VERSION = 3;
 const fmtErr = (e) => `${(e && e.name) || 'Error'}: ${(e && e.message) || e}`;
 const mb = (n) => (n / 1048576).toFixed(2);
 const sec = (ms) => (ms / 1000).toFixed(1);
@@ -11,7 +12,7 @@ const now = () => performance.now();
 const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k) || ''; localStorage.setItem(k, v); } catch { return ''; } return v; };
 
 // ---------- config (inputs + query string) ----------
-$('device').textContent = 'Device: ' + navigator.userAgent;
+$('device').textContent = `Device: ${navigator.userAgent} · page v${PAGE_VERSION}`;
 {
   const q = new URLSearchParams(location.search);
   if (q.get('api')) store('kv.api', q.get('api'));
@@ -45,16 +46,61 @@ function log(n, msg, replaceLast) {
 }
 function reset(n) { logs[n] = []; $('l' + n).textContent = ''; chip(n, 'RUNNING'); }
 
-async function api(req) {
+// transport: 'fetch' (default), 'fetch-nostore' (no cache + unique query), or 'xhr'.
+function xhrPost(url, body) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', url);
+    x.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+    x.onload = () => resolve({ status: x.status, text: x.responseText });
+    x.onerror = () => reject(new TypeError('XHR network error'));
+    x.ontimeout = () => reject(new TypeError('XHR timeout'));
+    x.timeout = 60000;
+    x.send(body);
+  });
+}
+async function api(req, transport = 'fetch') {
   if (!$('api').value.trim()) throw new Error('Web app URL is empty');
-  const url = apiUrl();
+  let url = apiUrl();
+  const body = JSON.stringify(req);
   const t0 = now();
-  const res = await fetch(url, { method: 'POST', body: JSON.stringify(req), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-  const text = await res.text();
+  let status, text;
+  try {
+    if (transport === 'xhr') {
+      ({ status, text } = await xhrPost(url, body));
+    } else {
+      const opts = { method: 'POST', body, headers: { 'Content-Type': 'text/plain;charset=utf-8' } };
+      if (transport === 'fetch-nostore') { opts.cache = 'no-store'; url += '?t=' + Date.now(); }
+      const res = await fetch(url, opts);
+      status = res.status; text = await res.text();
+    }
+  } catch (e) {
+    const err = new Error(`${req.op} via ${transport} failed after ${Math.round(now() - t0)} ms: ${fmtErr(e)}`);
+    err.transportFailure = true;
+    throw err;
+  }
   const ms = Math.round(now() - t0);
   let json;
-  try { json = JSON.parse(text); } catch { throw new Error(`HTTP ${res.status}, not JSON (${ms} ms): ${text.slice(0, 200)}`); }
-  return { json, ms, httpStatus: res.status };
+  try { json = JSON.parse(text); } catch { throw new Error(`HTTP ${status}, not JSON (${ms} ms): ${text.slice(0, 200)}`); }
+  return { json, ms, httpStatus: status, transport };
+}
+// Try fetch first; on a network-level failure retry with the other transports and record what happened.
+async function apiWithFallback(req, n) {
+  const tried = [];
+  for (const t of ['fetch', 'fetch-nostore', 'xhr']) {
+    try {
+      const r = await api(req, t);
+      tried.push(`${t}: ok ${r.ms} ms`);
+      log(n, `${req.op}: ${tried.join(' · ')}`);
+      r.tried = tried;
+      return r;
+    } catch (e) {
+      tried.push(e.transportFailure ? e.message : `${t}: ${fmtErr(e)}`);
+      if (!e.transportFailure) { log(n, `${req.op}: ${tried.join(' · ')}`); throw e; }
+    }
+  }
+  log(n, `${req.op}: ${tried.join(' · ')}`);
+  throw new Error(tried.join(' | '));
 }
 
 const R = { uploads: [], ping: null, upload: null, play: null, shrink: null, still: null, features: null, input: null };
@@ -63,14 +109,17 @@ const R = { uploads: [], ping: null, upload: null, play: null, shrink: null, sti
 $('ping').onclick = async () => {
   reset(1); R.ping = null;
   try {
-    const { json, ms } = await api({ op: 'ping' });
+    const first = await apiWithFallback({ op: 'ping' }, 1);
+    const second = await apiWithFallback({ op: 'ping' }, 1);
+    const { json, ms } = first;
+    R.pingTransports = `1st: ${first.tried.join(' · ')} | 2nd: ${second.tried.join(' · ')}`;
     log(1, `${ms} ms\n${JSON.stringify(json, null, 2)}`);
     const d = json.data;
     const pass = json.ok && d && d.dstEndCheck === 'Sun 10:00' && d.dstStartCheck === 'Sun 10:00';
     R.ping = { ok: !!json.ok, ms, data: d, error: json.error };
     if (d) log(1, `Prague: ${d.prague} (hour ${d.pragueHour}), script TZ: ${d.scriptTimeZone}`);
     chip(1, pass ? 'PASS' : 'FAIL');
-  } catch (e) { log(1, fmtErr(e)); R.ping = { ok: false, error: fmtErr(e) }; chip(1, 'FAIL'); }
+  } catch (e) { log(1, fmtErr(e)); R.ping = { ok: false, error: fmtErr(e) }; R.pingTransports = R.pingTransports || fmtErr(e); chip(1, 'FAIL'); }
 };
 
 // ---------- Step 2 ----------
@@ -103,11 +152,15 @@ function putFile(uploadUrl, blob, mime, onProgress) {
 }
 
 async function doUpload(src, label) {
-  reset(2); R.upload = null; uploaded = null;
+  reset(2); R.upload = null; uploaded = null; let sessionTried = '';
   $('prog').value = 0;
   try {
     log(2, `${label || 'Upload'}: ${src.name} · ${src.mime} · ${mb(src.blob.size)} MB`);
-    const { json, ms } = await api({ op: 'session', name: src.name, mime: src.mime, size: src.blob.size, origin: location.origin });
+    let sess;
+    try { sess = await apiWithFallback({ op: 'session', name: src.name, mime: src.mime, size: src.blob.size, origin: location.origin }, 2); }
+    catch (e) { throw new Error('Creating the upload link failed: ' + e.message); }
+    const { json, ms } = sess;
+    sessionTried = sess.tried.join(' · ');
     log(2, `session ${ms} ms: ${json.ok ? 'ok' : 'ERROR ' + json.error}`);
     if (!json.ok) throw new Error(json.error);
     const t0 = now();
@@ -120,7 +173,7 @@ async function doUpload(src, label) {
     log(2, `PUT status ${res.status}\n${res.text.slice(0, 300)}`);
     let body = null; try { body = JSON.parse(res.text); } catch { /* ignore */ }
     const pass = (res.status === 200 || res.status === 201) && body && body.id;
-    R.upload = { label: label || 'Upload', status: res.status, sizeMB: mb(src.blob.size), seconds: elapsed.toFixed(1), mbps: (src.blob.size / 1048576 / elapsed).toFixed(2), fileId: body && body.id, mime: src.mime };
+    R.upload = { label: label || 'Upload', session: sessionTried, status: res.status, sizeMB: mb(src.blob.size), seconds: elapsed.toFixed(1), mbps: (src.blob.size / 1048576 / elapsed).toFixed(2), fileId: body && body.id, mime: src.mime };
     R.uploads.push(R.upload);
     if (pass) { uploaded = { fileId: body.id, mime: src.mime }; $('prog').value = 100; }
     chip(2, pass ? 'PASS' : 'FAIL');
@@ -150,7 +203,7 @@ async function doShare() {
   try {
     if (!uploaded) throw new Error('Nothing uploaded yet (run Step 2 first)');
     const { fileId, mime } = uploaded;
-    const { json, ms } = await api({ op: 'share', fileId });
+    const { json, ms } = await apiWithFallback({ op: 'share', fileId }, 3);
     log(3, `share ${ms} ms: ${JSON.stringify(json)}`);
     if (!json.ok) throw new Error(json.error);
     const src = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media&key=${encodeURIComponent(apiKey())}`;
@@ -362,13 +415,14 @@ function report() {
   ln('Kvestuj spike report');
   ln('Date: ' + new Date().toString() + ' (' + new Date().toISOString() + ')');
   ln('UA: ' + navigator.userAgent);
-  ln('Origin: ' + location.origin);
+  ln('Origin: ' + location.origin + ' · page v' + PAGE_VERSION);
   { let ok = 'no'; try { apiUrl(); ok = 'yes'; } catch { /* reported as no */ } ln('Web app URL valid: ' + ok + ' · API key filled: ' + (apiKey() ? 'yes' : 'no')); }
   ln('');
   ln(`Step 1 Ping: ${status[1]}`);
   if (R.ping) ln('  ' + (R.ping.data ? JSON.stringify(R.ping.data) + ` (${R.ping.ms} ms)` : R.ping.error));
+  if (R.pingTransports) ln('  transports: ' + R.pingTransports);
   ln(`Step 2 Upload: ${status[2]}`);
-  for (const u of R.uploads) ln(`  [${u.label}] ` + (u.error ? u.error : `size ${u.sizeMB} MB, ${u.seconds} s (${u.mbps} MB/s), HTTP ${u.status}, mime ${u.mime}, fileId ${u.fileId}`));
+  for (const u of R.uploads) ln(`  [${u.label}] ` + (u.error ? u.error : `session [${u.session}] size ${u.sizeMB} MB, ${u.seconds} s (${u.mbps} MB/s), HTTP ${u.status}, mime ${u.mime}, fileId ${u.fileId}`));
   ln(`Step 3 Share + play: ${status[3]}`);
   if (R.play) {
     const p = R.play;
