@@ -20,7 +20,16 @@ $('device').textContent = 'Device: ' + navigator.userAgent;
   $('key').value = store('kv.key') || '';
   for (const id of ['api', 'key']) $(id).addEventListener('input', () => store('kv.' + id, $(id).value.trim()));
 }
-const apiUrl = () => $('api').value.trim();
+// Accept the Apps Script Web app URL with or without "https://"; refuse anything else with a clear message,
+// because a relative value would be POSTed to GitHub Pages itself (which answers 405 Not Allowed).
+const apiUrl = () => {
+  let v = $('api').value.trim();
+  if (/^script\.google\.com\//i.test(v)) v = 'https://' + v;
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(v)) {
+    throw new Error('The Web app URL must look like https://script.google.com/macros/s/…/exec (copy it from Deploy → Manage deployments)');
+  }
+  return v;
+};
 const apiKey = () => $('key').value.trim();
 
 // ---------- step helpers ----------
@@ -37,8 +46,8 @@ function log(n, msg, replaceLast) {
 function reset(n) { logs[n] = []; $('l' + n).textContent = ''; chip(n, 'RUNNING'); }
 
 async function api(req) {
+  if (!$('api').value.trim()) throw new Error('Web app URL is empty');
   const url = apiUrl();
-  if (!url) throw new Error('Web app URL is empty');
   const t0 = now();
   const res = await fetch(url, { method: 'POST', body: JSON.stringify(req), headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
   const text = await res.text();
@@ -354,6 +363,7 @@ function report() {
   ln('Date: ' + new Date().toString() + ' (' + new Date().toISOString() + ')');
   ln('UA: ' + navigator.userAgent);
   ln('Origin: ' + location.origin);
+  { let ok = 'no'; try { apiUrl(); ok = 'yes'; } catch { /* reported as no */ } ln('Web app URL valid: ' + ok + ' · API key filled: ' + (apiKey() ? 'yes' : 'no')); }
   ln('');
   ln(`Step 1 Ping: ${status[1]}`);
   if (R.ping) ln('  ' + (R.ping.data ? JSON.stringify(R.ping.data) + ` (${R.ping.ms} ms)` : R.ping.error));
